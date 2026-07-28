@@ -25,28 +25,23 @@ with st.sidebar:
     st.subheader("Council Member Models")
     model_1 = st.text_input("Model 1", "anthropic/claude-3.5-sonnet", key="m1_input")
     model_2 = st.text_input("Model 2", "openai/gpt-4o", key="m2_input")
-    model_3 = st.text_input("Model 3", "google/gemini-pro-1.5", key="m3_input")
+    model_3 = st.text_input("Model 3", "google/gemini-2.5-flash", key="m3_input")
     model_4 = st.text_input("Model 4", "meta-llama/llama-3.3-70b-instruct", key="m4_input")
+
+COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
+
 # Function to execute OpenRouter API call
 def call_openrouter(model_name, messages, api_key_val):
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key_val,
     )
-
     response = client.chat.completions.create(
         model=model_name,
         messages=messages,
         temperature=1.0,
         top_p=1.0,
         max_tokens=1500,
-        response_format={"type": "json_object"}
-    )
-    return response.choices[0].message.content
-        messages=messages,
-        temperature=1.0,
-        top_p=1.0,
-        max_tokens=1500,  # Prevents token allocation/402 credit errors
         response_format={"type": "json_object"}
     )
     return response.choices[0].message.content
