@@ -27,25 +27,22 @@ with st.sidebar:
     model_2 = st.text_input("Model 2", "openai/gpt-4o", key="m2_input")
     model_3 = st.text_input("Model 3", "google/gemini-pro-1.5", key="m3_input")
     model_4 = st.text_input("Model 4", "meta-llama/llama-3.3-70b-instruct", key="m4_input")
-
-COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
-
-# Function to execute OpenRouter API call with fallback model handling
+# Function to execute OpenRouter API call
 def call_openrouter(model_name, messages, api_key_val):
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key_val,
     )
-    
-    # Map common model aliases to reliable OpenRouter endpoints if needed
-    model_map = {
-        "anthropic/claude-3.5-sonnet": "anthropic/claude-3.5-sonnet:beta",
-        "google/gemini-pro-1.5": "google/gemini-flash-1.5",
-    }
-    target_model = model_map.get(model_name, model_name)
 
     response = client.chat.completions.create(
-        model=target_model,
+        model=model_name,
+        messages=messages,
+        temperature=1.0,
+        top_p=1.0,
+        max_tokens=1500,
+        response_format={"type": "json_object"}
+    )
+    return response.choices[0].message.content
         messages=messages,
         temperature=1.0,
         top_p=1.0,
