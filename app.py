@@ -42,47 +42,50 @@ with st.sidebar:
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
 
-# Robust Helper Function to Extract JSON
+# Extremely Forgiving JSON Extractor
 def extract_json(text):
     if not text:
         raise ValueError("Model returned empty response.")
         
+    # Standard JSON attempt
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
+        return json.loads(text.strip())
+    except Exception:
         pass
 
-    code_block_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if code_block_match:
+    # Clean potential triple backticks or markdown preamble
+    cleaned = re.sub(r"```(?:json)?", "", text)
+    cleaned = cleaned.replace("```", "").strip()
+
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        pass
+
+    # Extract first '{' to last '}'
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if match:
         try:
-            return json.loads(code_block_match.group(1))
-        except json.JSONDecodeError:
+            return json.loads(match.group(0))
+        except Exception:
             pass
 
-    greedy_match = re.search(r"\{.*\}", text, re.DOTALL)
-    if greedy_match:
-        try:
-            return json.loads(greedy_match.group(0))
-        except json.JSONDecodeError:
-            pass
+    raise ValueError("Could not parse JSON response.")
 
-    raise ValueError("Model output could not be parsed into valid JSON.")
-
-# Resilient Call function using OpenRouter Fallback Array
+# OpenRouter API call without rigid JSON response_format
 def call_openrouter_with_fallback(primary_model, messages, api_key_val, max_tokens=2000):
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key_val,
     )
-    fallback_models = [primary_model, "openrouter/free", "openrouter/auto"]
+    fallback_models = [primary_model, "openrouter/auto", "openrouter/free"]
     
     response = client.chat.completions.create(
         model=primary_model,
         messages=messages,
-        temperature=0.7,
-        top_p=1.0,
+        temperature=0.3,  # Low temperature for precise JSON generation
+        top_p=0.9,
         max_tokens=max_tokens,
-        response_format={"type": "json_object"},
         extra_body={
             "models": fallback_models
         }
@@ -139,12 +142,12 @@ if st.button("🚀 Run Full Pipeline (Stages 1, 2 & 3)", type="primary"):
     # ==========================================================================
     st.subheader("📍 Stage 1: Independent Generation")
     
-    stage1_prompt = f"""You are an expert clinical council member. Evaluate the following case vignette.
+    stage1_prompt = f"""You are an expert clinical council member. Output ONLY raw JSON matching this structure. Do NOT include markdown text outside JSON.
 
 Case Vignette:
 {case_vignette}
 
-You MUST output your response strictly in valid JSON format:
+Format:
 {{
   "primary_diagnosis": "Most likely primary diagnosis string",
   "differential_diagnoses": ["Diff 1", "Diff 2", "Diff 3", "Diff 4"],
@@ -196,8 +199,9 @@ You MUST output your response strictly in valid JSON format:
         st.write("**Random Label Mapping for this run:**", label_mapping)
         st.text(masked_text)
 
-    stage2_prompt = f"""You are an expert clinical council member participating in Stage 2: Peer Review.
-Below are 4 anonymized clinical treatment plans (Response A, Response B, Response C, Response D).
+    stage2_prompt = f"""You are an expert clinical council member performing Stage 2 Peer Review.
+Evaluate the 4 anonymized clinical treatment plans below.
+Output ONLY raw JSON format without any conversational intro text or markdown outside JSON.
 
 Case Vignette:
 {case_vignette}
@@ -205,13 +209,12 @@ Case Vignette:
 Anonymized Plans:
 {masked_text}
 
-Critique ALL 4 responses objectively. Evaluate clinical accuracy, surgical safety, and grafting protocol completeness.
-You MUST output your response strictly in valid JSON format:
+JSON Format Required:
 {{
-  "critique_response_a": {{"strengths": "...", "weaknesses": "...", "score_out_of_10": 8}},
-  "critique_response_b": {{"strengths": "...", "weaknesses": "...", "score_out_of_10": 7}},
-  "critique_response_c": {{"strengths": "...", "weaknesses": "...", "score_out_of_10": 9}},
-  "critique_response_d": {{"strengths": "...", "weaknesses": "...", "score_out_of_10": 6}}
+  "critique_response_a": {{"strengths": "Short strengths", "weaknesses": "Short weaknesses", "score_out_of_10": 8}},
+  "critique_response_b": {{"strengths": "Short strengths", "weaknesses": "Short weaknesses", "score_out_of_10": 7}},
+  "critique_response_c": {{"strengths": "Short strengths", "weaknesses": "Short weaknesses", "score_out_of_10": 9}},
+  "critique_response_d": {{"strengths": "Short strengths", "weaknesses": "Short weaknesses", "score_out_of_10": 6}}
 }}
 """
 
@@ -250,12 +253,13 @@ You MUST output your response strictly in valid JSON format:
     with st.spinner(f"Council Chair (`{chair_model}`) synthesizing Stage 1 plans & Stage 2 peer critiques..."):
         try:
             stage3_prompt = f"""You are the Chair of the Clinical Council. 
-Your job is to review the original clinical case, the plans generated by council members, and all peer critiques to synthesize a final consensus decision.
+Synthesize a final consensus decision based on the case, Stage 1 plans, and Stage 2 critiques.
+Output ONLY raw JSON format.
 
 Case Vignette:
 {case_vignette}
 
-Stage 1 Independent Plans (Unmasked):
+Stage 1 Independent Plans:
 {json.dumps(stage1_results, indent=2)}
 
 Stage 2 Peer Critiques & Scores:
@@ -264,12 +268,7 @@ Stage 2 Peer Critiques & Scores:
 Masking Key used in Stage 2:
 {json.dumps(label_mapping, indent=2)}
 
-Tasks:
-1. Identify the single best overall plan among the council members and justify why.
-2. Address any major disagreements or clinical risks raised in the critiques.
-3. Synthesize a final, authoritative 5-step consensus management plan.
-
-You MUST output your final synthesis strictly in valid JSON format:
+JSON Format Required:
 {{
   "winning_response_label": "e.g., Response C (Model 3)",
   "selection_rationale": "Detailed explanation of why this plan was chosen as best based on peer scores and safety.",
@@ -278,7 +277,7 @@ You MUST output your final synthesis strictly in valid JSON format:
   "final_consensus_plan": [
     "1. Surgical approach and sinus floor considerations",
     "2. Bone grafting material & membrane protocol",
-    "3. Implant dimensions, primary stability, and insertion torque rules",
+    "3. Implant dimensions, primary stability, and insertion torque fallback rules",
     "4. Prosthodontic / occlusal design",
     "5. Periodontal biotype management & follow-up"
   ]
@@ -290,7 +289,6 @@ You MUST output your final synthesis strictly in valid JSON format:
 
             st.success("👑 Council Chair Synthesis Complete!")
             
-            # Display Winning Plan Card
             st.info(f"🏆 **Winning Plan Selected:** {chair_decision.get('winning_response_label', 'N/A')}")
             
             st.markdown("### 📝 Chair Selection Rationale")
