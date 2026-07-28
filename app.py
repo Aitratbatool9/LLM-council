@@ -23,10 +23,10 @@ with st.sidebar:
     api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...", key="openrouter_key")
     
     st.subheader("Free Council Member Models")
-    model_1 = st.text_input("Model 1", "meta-llama/llama-3.3-70b-instruct:free", key="m1_input")
-    model_2 = st.text_input("Model 2", "qwen/qwen3-next-80b-a3b-instruct:free", key="m2_input")
-    model_3 = st.text_input("Model 3", "google/gemma-4-31b-it:free", key="m3_input")
-    model_4 = st.text_input("Model 4", "nvidia/nemotron-3-super-120b-a12b:free", key="m4_input")
+    model_1 = st.text_input("Model 1", "meta-llama/llama-3.3-70b-instruct:free", key="m1_free")
+    model_2 = st.text_input("Model 2", "google/gemini-2.0-flash-exp:free", key="m2_free")
+    model_3 = st.text_input("Model 3", "qwen/qwen-2.5-72b-instruct:free", key="m3_free")
+    model_4 = st.text_input("Model 4", "nvidia/nemotron-4-340b-instruct:free", key="m4_free")
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
 
@@ -41,7 +41,7 @@ def call_openrouter(model_name, messages, api_key_val):
         messages=messages,
         temperature=1.0,
         top_p=1.0,
-        max_tokens=1500,
+        max_tokens=1500,  # Prevents 402 credit limit errors
         response_format={"type": "json_object"}
     )
     return response.choices[0].message.content
