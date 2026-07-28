@@ -6,14 +6,14 @@ from openai import OpenAI
 # PAGE CONFIGURATION
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="LLM Council - Stage 1 (Free Models)",
+    page_title="LLM Council - Stage 1 (Dynamic Free Council)",
     page_icon="🩺",
     layout="wide"
 )
 
 st.title("🩺 LLM Council — Stage 1: Independent Generation")
 st.markdown("""
-*Methodology:* Submits the clinical case simultaneously to **4 individual active free LLM council members** 
+*Methodology:* Submits the clinical case simultaneously to **4 free LLM council members** 
 via OpenRouter using standardized hyperparameters (`temperature=1.0`, `top_p=1.0`) and enforces structured JSON output.
 """)
 
@@ -23,10 +23,10 @@ with st.sidebar:
     api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...", key="openrouter_key")
     
     st.subheader("Free Council Member Models")
-    model_1 = st.text_input("Model 1", "google/gemma-4-31b-it:free", key="m1_free_v2")
-    model_2 = st.text_input("Model 2", "nvidia/nemotron-3-super-120b-a12b:free", key="m2_free_v2")
-    model_3 = st.text_input("Model 3", "google/gemma-4-26b-a4b-it:free", key="m3_free_v2")
-    model_4 = st.text_input("Model 4", "openai/gpt-oss-20b:free", key="m4_free_v2")
+    model_1 = st.text_input("Model 1 (Router)", "openrouter/free", key="m1_fallback")
+    model_2 = st.text_input("Model 2 (Nemotron Super)", "nvidia/nemotron-3-super-120b-a12b:free", key="m2_fallback")
+    model_3 = st.text_input("Model 3 (Ling Flash)", "inclusionai/ling-3.0-flash:free", key="m3_fallback")
+    model_4 = st.text_input("Model 4 (Auto Router)", "openrouter/auto", key="m4_fallback")
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
 
@@ -41,7 +41,7 @@ def call_openrouter(model_name, messages, api_key_val):
         messages=messages,
         temperature=1.0,
         top_p=1.0,
-        max_tokens=1500,  # Prevents token allocation errors
+        max_tokens=1500,  # Prevents token limit / 402 error issues
         response_format={"type": "json_object"}
     )
     return response.choices[0].message.content
