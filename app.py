@@ -6,15 +6,15 @@ from openai import OpenAI
 # PAGE CONFIGURATION
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="LLM Council - Stage 1",
+    page_title="LLM Council - Stage 1 (Free Models)",
     page_icon="🩺",
     layout="wide"
 )
 
 st.title("🩺 LLM Council — Stage 1: Independent Generation")
 st.markdown("""
-*Methodology:* Submits the clinical case simultaneously to **4 individual LLM council members** 
-using standardized hyperparameters (temp=1.0, top_p=1.0) and enforces structured JSON output.
+*Methodology:* Submits the clinical case simultaneously to **4 individual free LLM council members** 
+via OpenRouter using standardized hyperparameters (`temperature=1.0`, `top_p=1.0`) and enforces structured JSON output.
 """)
 
 # Sidebar for API key & Model Selection
@@ -22,11 +22,11 @@ with st.sidebar:
     st.header("⚙️ Settings")
     api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...", key="openrouter_key")
     
-    st.subheader("Council Member Models")
-    model_1 = st.text_input("Model 1", "anthropic/claude-3.5-sonnet", key="m1_input")
-    model_2 = st.text_input("Model 2", "openai/gpt-4o", key="m2_input")
-    model_3 = st.text_input("Model 3", "google/gemini-2.5-flash", key="m3_input")
-    model_4 = st.text_input("Model 4", "meta-llama/llama-3.3-70b-instruct", key="m4_input")
+    st.subheader("Free Council Member Models")
+    model_1 = st.text_input("Model 1", "meta-llama/llama-3.3-70b-instruct:free", key="m1_input")
+    model_2 = st.text_input("Model 2", "qwen/qwen3-next-80b-a3b-instruct:free", key="m2_input")
+    model_3 = st.text_input("Model 3", "google/gemma-4-31b-it:free", key="m3_input")
+    model_4 = st.text_input("Model 4", "nvidia/nemotron-3-super-120b-a12b:free", key="m4_input")
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
 
