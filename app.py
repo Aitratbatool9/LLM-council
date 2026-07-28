@@ -26,24 +26,43 @@ with st.sidebar:
     api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...", key="openrouter_key")
     
     st.subheader("Free Council Member Models")
-    model_1 = st.text_input("Model 1", "openrouter/free", key="m1_stage2_v1")
-    model_2 = st.text_input("Model 2", "meta-llama/llama-3.2-3b-instruct:free", key="m2_stage2_v1")
-    model_3 = st.text_input("Model 3", "google/gemma-2-9b-it:free", key="m3_stage2_v1")
-    model_4 = st.text_input("Model 4", "openrouter/auto", key="m4_stage2_v1")
+    model_1 = st.text_input("Model 1", "openrouter/free", key="m1_stage2_v2")
+    model_2 = st.text_input("Model 2", "meta-llama/llama-3.2-3b-instruct:free", key="m2_stage2_v2")
+    model_3 = st.text_input("Model 3", "google/gemma-2-9b-it:free", key="m3_stage2_v2")
+    model_4 = st.text_input("Model 4", "openrouter/auto", key="m4_stage2_v2")
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
 
-# Helper function to extract JSON safely
+# Robust Helper Function to Extract JSON
 def extract_json(text):
+    if not text:
+        raise ValueError("Model returned empty response.")
+        
+    # Attempt 1: Direct JSON parsing
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-        raise ValueError("Model output could not be parsed into valid JSON.")
+        pass
 
-# Resilient Call function using OpenRouter Fallback Array
+    # Attempt 2: Extract code block content if wrapped in ```json ... ```
+    code_block_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if code_block_match:
+        try:
+            return json.loads(code_block_match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # Attempt 3: General greedy match for any JSON object structure
+    greedy_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if greedy_match:
+        try:
+            return json.loads(greedy_match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError("Model output could not be parsed into valid JSON.")
+
+# Resilient Call function using OpenRouter Fallback Array & Enforced JSON Format
 def call_openrouter_with_fallback(primary_model, messages, api_key_val):
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
@@ -54,20 +73,20 @@ def call_openrouter_with_fallback(primary_model, messages, api_key_val):
     response = client.chat.completions.create(
         model=primary_model,
         messages=messages,
-        temperature=1.0,
+        temperature=0.7,  # Slightly lower temperature for structured outputs
         top_p=1.0,
-        max_tokens=1800,
+        max_tokens=2000,
+        response_format={"type": "json_object"},
         extra_body={
             "models": fallback_models
         }
     )
     return response.choices[0].message.content
 
-# Masking & Anonymizing Helper (Shuffles using random.shuffle)
+# Masking & Anonymizing Helper
 def mask_stage1_responses(stage1_results):
     labels = ["Response A", "Response B", "Response C", "Response D"]
     
-    # Convert dict items to a list and randomly shuffle order
     combined = list(stage1_results.items())
     random.shuffle(combined)
     
@@ -76,7 +95,7 @@ def mask_stage1_responses(stage1_results):
     
     for idx, (model_name, response_data) in enumerate(combined):
         label = labels[idx]
-        mapping[label] = model_name  # Keep mapping for developer audit
+        mapping[label] = model_name
         
         formatted_block = f"""---
 ### {label}
@@ -118,7 +137,7 @@ if st.button("🚀 Run Pipeline (Stage 1 & Stage 2)", type="primary"):
 Case Vignette:
 {case_vignette}
 
-You MUST output your response strictly in the following JSON format:
+You MUST output your response strictly in valid JSON format:
 {{
   "primary_diagnosis": "Most likely primary diagnosis string",
   "differential_diagnoses": ["Diff 1", "Diff 2", "Diff 3", "Diff 4"],
@@ -179,12 +198,12 @@ Anonymized Plans:
 {masked_text}
 
 Critique ALL 4 responses objectively. Evaluate clinical accuracy, surgical safety, and grafting protocol completeness.
-You MUST output your response strictly in the following JSON format:
+You MUST output your response strictly in valid JSON format:
 {{
-  "critique_response_a": {{"strengths": "...", "weaknesses": "...", "score_out_of_10": 8}},
-  "critique_response_b": {{"strengths": "...", "weaknesses": "...", "score_out_of_10": 7}},
-  "critique_response_c": {{"strengths": "...", "weaknesses": "...", "score_out_of_10": 9}},
-  "critique_response_d": {{"strengths": "...", "weaknesses": "...", "score_out_of_10": 6}}
+  "critique_response_a": {{"strengths": "Short summary of strengths", "weaknesses": "Short summary of weaknesses", "score_out_of_10": 8}},
+  "critique_response_b": {{"strengths": "Short summary of strengths", "weaknesses": "Short summary of weaknesses", "score_out_of_10": 7}},
+  "critique_response_c": {{"strengths": "Short summary of strengths", "weaknesses": "Short summary of weaknesses", "score_out_of_10": 9}},
+  "critique_response_d": {{"strengths": "Short summary of strengths", "weaknesses": "Short summary of weaknesses", "score_out_of_10": 6}}
 }}
 """
 
