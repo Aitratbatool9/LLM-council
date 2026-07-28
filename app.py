@@ -13,7 +13,7 @@ st.set_page_config(
 
 st.title("🩺 LLM Council — Stage 1: Independent Generation")
 st.markdown("""
-*Methodology:* Submits the clinical case simultaneously to **4 individual free LLM council members** 
+*Methodology:* Submits the clinical case simultaneously to **4 individual active free LLM council members** 
 via OpenRouter using standardized hyperparameters (`temperature=1.0`, `top_p=1.0`) and enforces structured JSON output.
 """)
 
@@ -23,10 +23,10 @@ with st.sidebar:
     api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...", key="openrouter_key")
     
     st.subheader("Free Council Member Models")
-    model_1 = st.text_input("Model 1", "meta-llama/llama-3.3-70b-instruct:free", key="m1_free")
-    model_2 = st.text_input("Model 2", "google/gemini-2.0-flash-exp:free", key="m2_free")
-    model_3 = st.text_input("Model 3", "qwen/qwen-2.5-72b-instruct:free", key="m3_free")
-    model_4 = st.text_input("Model 4", "nvidia/nemotron-4-340b-instruct:free", key="m4_free")
+    model_1 = st.text_input("Model 1", "google/gemma-4-31b-it:free", key="m1_free_v2")
+    model_2 = st.text_input("Model 2", "nvidia/nemotron-3-super-120b-a12b:free", key="m2_free_v2")
+    model_3 = st.text_input("Model 3", "google/gemma-4-26b-a4b-it:free", key="m3_free_v2")
+    model_4 = st.text_input("Model 4", "openai/gpt-oss-20b:free", key="m4_free_v2")
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
 
@@ -41,7 +41,7 @@ def call_openrouter(model_name, messages, api_key_val):
         messages=messages,
         temperature=1.0,
         top_p=1.0,
-        max_tokens=1500,  # Prevents 402 credit limit errors
+        max_tokens=1500,  # Prevents token allocation errors
         response_format={"type": "json_object"}
     )
     return response.choices[0].message.content
