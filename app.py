@@ -25,7 +25,7 @@ with st.sidebar:
     st.subheader("Council Member Models")
     model_1 = st.text_input("Model 1", "anthropic/claude-3.5-sonnet")
     model_2 = st.text_input("Model 2", "openai/gpt-4o")
-    model_3 = st.text_input("Model 3", "google/gemini-pro-1.5")
+    model_3 = st.text_input("Model 3", "google/gemini-flash-1.5")
     model_4 = st.text_input("Model 4", "meta-llama/llama-3.3-70b-instruct")
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
@@ -41,6 +41,7 @@ def call_openrouter(model_name, messages, api_key_val):
         messages=messages,
         temperature=1.0,
         top_p=1.0,
+        max_tokens=1500,  # Prevents 402 credit limit errors
         response_format={"type": "json_object"}
     )
     return response.choices[0].message.content
