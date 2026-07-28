@@ -7,7 +7,7 @@ from openai import OpenAI
 # PAGE CONFIGURATION
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="LLM Council - Stage 1 (Resilient Free Models)",
+    page_title="LLM Council - Stage 1 (Fail-Safe Council)",
     page_icon="🩺",
     layout="wide"
 )
@@ -15,7 +15,7 @@ st.set_page_config(
 st.title("🩺 LLM Council — Stage 1: Independent Generation")
 st.markdown("""
 *Methodology:* Submits the clinical case simultaneously to **4 free LLM council members** 
-via OpenRouter using standardized hyperparameters (`temperature=1.0`, `top_p=1.0`).
+via OpenRouter using standardized hyperparameters (`temperature=1.0`, `top_p=1.0`) with automated fallback routing.
 """)
 
 # Sidebar for API key & Model Selection
@@ -24,34 +24,35 @@ with st.sidebar:
     api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...", key="openrouter_key")
     
     st.subheader("Free Council Member Models")
-    model_1 = st.text_input("Model 1 (Router)", "openrouter/free", key="m1_resilient_v4")
-    model_2 = st.text_input("Model 2 (Llama 3.2)", "meta-llama/llama-3.2-3b-instruct:free", key="m2_resilient_v4")
-    model_3 = st.text_input("Model 3 (Nemotron Nano)", "nvidia/nemotron-3-nano-30b-a3b:free", key="m3_resilient_v4")
-    model_4 = st.text_input("Model 4 (Auto Router)", "openrouter/auto", key="m4_resilient_v4")
+    model_1 = st.text_input("Model 1", "openrouter/free", key="m1_failsafe_v5")
+    model_2 = st.text_input("Model 2", "nvidia/nemotron-3-ultra-550b-a55b:free", key="m2_failsafe_v5")
+    model_3 = st.text_input("Model 3", "google/gemma-4-31b-it:free", key="m3_failsafe_v5")
+    model_4 = st.text_input("Model 4", "openrouter/auto", key="m4_failsafe_v5")
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
 
-# Helper function to parse JSON safely from model output
+# Helper function to extract JSON cleanly
 def extract_json(text):
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        # Fallback: extract json block wrapped in ```json ... ``` or standard braces
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if match:
             return json.loads(match.group(0))
         raise ValueError("Model output could not be parsed into valid JSON.")
 
-# Function to execute OpenRouter API call
-def call_openrouter(model_name, messages, api_key_val):
+# Resilient Call function using OpenRouter's Native Fallback Mechanism
+def call_openrouter_with_fallback(primary_model, messages, api_key_val):
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key_val,
     )
     
-    # Standard call with fallback parsing to prevent API schema rejection on free endpoints
+    # We provide primary model first, followed by general free routers as backup
+    model_chain = [primary_model, "openrouter/free", "openrouter/auto"]
+    
     response = client.chat.completions.create(
-        model=model_name,
+        model=model_chain,  # OpenRouter automatically tries candidates in order!
         messages=messages,
         temperature=1.0,
         top_p=1.0,
@@ -115,7 +116,7 @@ You MUST output your response strictly in the following JSON format without any 
             with st.spinner("Generating..."):
                 try:
                     messages = [{"role": "user", "content": stage1_prompt}]
-                    raw_out = call_openrouter(model, messages, api_key)
+                    raw_out = call_openrouter_with_fallback(model, messages, api_key)
                     parsed_json = extract_json(raw_out)
                     
                     st.success("Complete!")
