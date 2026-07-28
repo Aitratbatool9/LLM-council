@@ -24,10 +24,10 @@ with st.sidebar:
     api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...", key="openrouter_key")
     
     st.subheader("Free Council Member Models")
-    model_1 = st.text_input("Model 1", "openrouter/free", key="m1_failsafe_v5")
-    model_2 = st.text_input("Model 2", "nvidia/nemotron-3-ultra-550b-a55b:free", key="m2_failsafe_v5")
-    model_3 = st.text_input("Model 3", "google/gemma-4-31b-it:free", key="m3_failsafe_v5")
-    model_4 = st.text_input("Model 4", "openrouter/auto", key="m4_failsafe_v5")
+    model_1 = st.text_input("Model 1", "openrouter/free", key="m1_fallback_v6")
+    model_2 = st.text_input("Model 2", "meta-llama/llama-3.2-3b-instruct:free", key="m2_fallback_v6")
+    model_3 = st.text_input("Model 3", "google/gemma-2-9b-it:free", key="m3_fallback_v6")
+    model_4 = st.text_input("Model 4", "openrouter/auto", key="m4_fallback_v6")
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
 
@@ -41,22 +41,25 @@ def extract_json(text):
             return json.loads(match.group(0))
         raise ValueError("Model output could not be parsed into valid JSON.")
 
-# Resilient Call function using OpenRouter's Native Fallback Mechanism
+# Resilient Call function using OpenRouter's Native Extra Body Fallback Array
 def call_openrouter_with_fallback(primary_model, messages, api_key_val):
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key_val,
     )
     
-    # We provide primary model first, followed by general free routers as backup
-    model_chain = [primary_model, "openrouter/free", "openrouter/auto"]
+    # Fallback list for OpenRouter's extra_body model routing
+    fallback_models = [primary_model, "openrouter/free", "openrouter/auto"]
     
     response = client.chat.completions.create(
-        model=model_chain,  # OpenRouter automatically tries candidates in order!
+        model=primary_model,
         messages=messages,
         temperature=1.0,
         top_p=1.0,
-        max_tokens=1500
+        max_tokens=1500,
+        extra_body={
+            "models": fallback_models
+        }
     )
     return response.choices[0].message.content
 
