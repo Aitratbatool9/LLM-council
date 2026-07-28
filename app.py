@@ -19,9 +19,10 @@ using standardized hyperparameters (temp=1.0, top_p=1.0) and enforces structured
 
 # Sidebar for API key & Model Selection
 with st.sidebar:
-    st.header("⚙️ Settings")
-    api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...")
-    
+    model_1 = st.text_input("Model 1", "anthropic/claude-3.5-sonnet:beta")
+    model_2 = st.text_input("Model 2", "openai/gpt-4o")
+    model_3 = st.text_input("Model 3", "google/gemini-2.0-flash-001")
+    model_4 = st.text_input("Model 4", "meta-llama/llama-3.3-70b-instruct")
     st.subheader("Council Member Models")
     model_1 = st.text_input("Model 1", "anthropic/claude-3.5-sonnet")
     model_2 = st.text_input("Model 2", "openai/gpt-4o")
