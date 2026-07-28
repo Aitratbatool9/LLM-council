@@ -1,4 +1,5 @@
 import json
+import re
 import streamlit as st
 from openai import OpenAI
 
@@ -6,7 +7,7 @@ from openai import OpenAI
 # PAGE CONFIGURATION
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="LLM Council - Stage 1 (Dynamic Free Council)",
+    page_title="LLM Council - Stage 1 (Resilient Free Models)",
     page_icon="🩺",
     layout="wide"
 )
@@ -14,7 +15,7 @@ st.set_page_config(
 st.title("🩺 LLM Council — Stage 1: Independent Generation")
 st.markdown("""
 *Methodology:* Submits the clinical case simultaneously to **4 free LLM council members** 
-via OpenRouter using standardized hyperparameters (`temperature=1.0`, `top_p=1.0`) and enforces structured JSON output.
+via OpenRouter using standardized hyperparameters (`temperature=1.0`, `top_p=1.0`).
 """)
 
 # Sidebar for API key & Model Selection
@@ -23,12 +24,23 @@ with st.sidebar:
     api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...", key="openrouter_key")
     
     st.subheader("Free Council Member Models")
-    model_1 = st.text_input("Model 1 (Router)", "openrouter/free", key="m1_fallback")
-    model_2 = st.text_input("Model 2 (Nemotron Super)", "nvidia/nemotron-3-super-120b-a12b:free", key="m2_fallback")
-    model_3 = st.text_input("Model 3 (Ling Flash)", "inclusionai/ling-3.0-flash:free", key="m3_fallback")
-    model_4 = st.text_input("Model 4 (Auto Router)", "openrouter/auto", key="m4_fallback")
+    model_1 = st.text_input("Model 1 (Router)", "openrouter/free", key="m1_resilient_v4")
+    model_2 = st.text_input("Model 2 (Llama 3.2)", "meta-llama/llama-3.2-3b-instruct:free", key="m2_resilient_v4")
+    model_3 = st.text_input("Model 3 (Nemotron Nano)", "nvidia/nemotron-3-nano-30b-a3b:free", key="m3_resilient_v4")
+    model_4 = st.text_input("Model 4 (Auto Router)", "openrouter/auto", key="m4_resilient_v4")
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
+
+# Helper function to parse JSON safely from model output
+def extract_json(text):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Fallback: extract json block wrapped in ```json ... ``` or standard braces
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        raise ValueError("Model output could not be parsed into valid JSON.")
 
 # Function to execute OpenRouter API call
 def call_openrouter(model_name, messages, api_key_val):
@@ -36,13 +48,14 @@ def call_openrouter(model_name, messages, api_key_val):
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key_val,
     )
+    
+    # Standard call with fallback parsing to prevent API schema rejection on free endpoints
     response = client.chat.completions.create(
         model=model_name,
         messages=messages,
         temperature=1.0,
         top_p=1.0,
-        max_tokens=1500,  # Prevents token limit / 402 error issues
-        response_format={"type": "json_object"}
+        max_tokens=1500
     )
     return response.choices[0].message.content
 
@@ -74,7 +87,7 @@ if st.button("🚀 Run Stage 1 (Generate 4 Independent Plans)", type="primary"):
 Case Vignette:
 {case_vignette}
 
-You MUST output your response strictly in the following JSON format:
+You MUST output your response strictly in the following JSON format without any extra markdown wrapper text outside the JSON object:
 {{
   "primary_diagnosis": "Most likely primary diagnosis string",
   "differential_diagnoses": [
@@ -103,7 +116,7 @@ You MUST output your response strictly in the following JSON format:
                 try:
                     messages = [{"role": "user", "content": stage1_prompt}]
                     raw_out = call_openrouter(model, messages, api_key)
-                    parsed_json = json.loads(raw_out)
+                    parsed_json = extract_json(raw_out)
                     
                     st.success("Complete!")
                     st.markdown("**Primary Diagnosis:**")
@@ -117,7 +130,7 @@ You MUST output your response strictly in the following JSON format:
                     for step in parsed_json.get("management_plan", []):
                         st.write(f"- {step}")
 
-                    with st.expander("Raw JSON Output"):
+                    with st.expander("Raw Output"):
                         st.json(parsed_json)
 
                 except Exception as e:
