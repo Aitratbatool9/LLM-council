@@ -19,30 +19,37 @@ using standardized hyperparameters (temp=1.0, top_p=1.0) and enforces structured
 
 # Sidebar for API key & Model Selection
 with st.sidebar:
-    model_1 = st.text_input("Model 1", "anthropic/claude-3.5-sonnet:beta")
-    model_2 = st.text_input("Model 2", "openai/gpt-4o")
-    model_3 = st.text_input("Model 3", "google/gemini-2.0-flash-001")
-    model_4 = st.text_input("Model 4", "meta-llama/llama-3.3-70b-instruct")
+    st.header("⚙️ Settings")
+    api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...", key="openrouter_key")
+    
     st.subheader("Council Member Models")
-    model_1 = st.text_input("Model 1", "anthropic/claude-3.5-sonnet")
-    model_2 = st.text_input("Model 2", "openai/gpt-4o")
-    model_3 = st.text_input("Model 3", "google/gemini-flash-1.5")
-    model_4 = st.text_input("Model 4", "meta-llama/llama-3.3-70b-instruct")
+    model_1 = st.text_input("Model 1", "anthropic/claude-3.5-sonnet", key="m1_input")
+    model_2 = st.text_input("Model 2", "openai/gpt-4o", key="m2_input")
+    model_3 = st.text_input("Model 3", "google/gemini-pro-1.5", key="m3_input")
+    model_4 = st.text_input("Model 4", "meta-llama/llama-3.3-70b-instruct", key="m4_input")
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
 
-# Function to execute OpenRouter API call
+# Function to execute OpenRouter API call with fallback model handling
 def call_openrouter(model_name, messages, api_key_val):
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key_val,
     )
+    
+    # Map common model aliases to reliable OpenRouter endpoints if needed
+    model_map = {
+        "anthropic/claude-3.5-sonnet": "anthropic/claude-3.5-sonnet:beta",
+        "google/gemini-pro-1.5": "google/gemini-flash-1.5",
+    }
+    target_model = model_map.get(model_name, model_name)
+
     response = client.chat.completions.create(
-        model=model_name,
+        model=target_model,
         messages=messages,
         temperature=1.0,
         top_p=1.0,
-        max_tokens=1500,  # Prevents 402 credit limit errors
+        max_tokens=1500,  # Prevents token allocation/402 credit errors
         response_format={"type": "json_object"}
     )
     return response.choices[0].message.content
@@ -58,7 +65,7 @@ Bone quality: D3-D4 trabecular pattern.
 Adjacent teeth (#15, #17) clinically healthy.
 Medical history: Non-smoker, ASA II."""
 
-case_vignette = st.text_area("Vignette Text", value=default_vignette, height=150)
+case_vignette = st.text_area("Vignette Text", value=default_vignette, height=150, key="vignette_input")
 
 # ------------------------------------------------------------------------------
 # STAGE 1 EXECUTION
