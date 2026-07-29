@@ -16,9 +16,9 @@ st.set_page_config(
 st.title("🩺 LLM Council — Multi-Agent Clinical Pipeline")
 st.markdown("""
 *Methodology:*
-1. **Stage 1 (Generation):** 4 free LLMs generate independent clinical plans.
+1. **Stage 1 (Generation):** 4 LLMs generate independent clinical plans.
 2. **Stage 2 (Anonymous Peer Review):** All responses are masked (A, B, C, D) and evaluated by all models.
-3. **Stage 3 (Council Chair Synthesis):** A Council Chair model synthesizes all plans + peer critiques to declare the winning plan and final consensus recommendation.
+3. **Stage 3 (Council Chair Synthesis):** A Council Chair model synthesizes all plans + peer critiques to declare the winning plan.
 """)
 
 # Sidebar settings
@@ -27,64 +27,49 @@ with st.sidebar:
     api_key = st.text_input("OpenRouter API Key", type="password", help="Paste sk-or-v1-...", key="openrouter_key")
     
     st.subheader("Council Member Models")
-    model_1 = st.text_input("Model 1", "openrouter/free", key="m1_s3_v3")
-    model_2 = st.text_input("Model 2", "meta-llama/llama-3.2-3b-instruct:free", key="m2_s3_v3")
-    model_3 = st.text_input("Model 3", "google/gemma-2-9b-it:free", key="m3_s3_v3")
-    model_4 = st.text_input("Model 4", "openrouter/auto", key="m4_s3_v3")
+    model_1 = st.text_input("Model 1", "meta-llama/llama-3.3-70b-instruct", key="m1_s3")
+    model_2 = st.text_input("Model 2", "deepseek/deepseek-chat", key="m2_s3")
+    model_3 = st.text_input("Model 3", "meta-llama/llama-3.1-8b-instruct", key="m3_s3")
+    model_4 = st.text_input("Model 4", "google/gemini-flash-1.5", key="m4_s3")
     
     st.subheader("👑 Council Chair Model")
     chair_model = st.selectbox(
         "Select Chair Model",
-        ["openrouter/auto", "google/gemma-2-9b-it:free", "openrouter/free"],
+        ["meta-llama/llama-3.3-70b-instruct", "deepseek/deepseek-chat"],
         index=0,
-        key="chair_select_v3"
+        key="chair_select"
     )
 
 COUNCIL_MODELS = [model_1, model_2, model_3, model_4]
 
-# Robust Safe JSON Extractor
+# Safe JSON Extractor
 def extract_json(text):
     if not text:
         raise ValueError("Model returned empty response.")
-        
-    # Attempt 1: Direct JSON parsing
     try:
         return json.loads(text.strip())
     except Exception:
         pass
-
-    # Attempt 2: Extract content starting at first '{' and ending at last '}'
     match = re.search(r"(\{[\s\S]*\})", text)
     if match:
         try:
             return json.loads(match.group(1).strip())
         except Exception:
             pass
-
     raise ValueError("Could not parse valid JSON from response.")
 
-# OpenRouter Call with Model Fallback Chain
-def call_openrouter_with_fallback(primary_model, messages, api_key_val, max_tokens=2000):
+# Direct OpenRouter API Call (Fast & Timeout Protected)
+def call_openrouter(model_name, messages, api_key_val, max_tokens=1500):
     client = OpenAI(
-        base_url="[https://openrouter.ai/api/v1](https://openrouter.ai/api/v1)",
+        base_url="https://openrouter.ai/api/v1",
         api_key=api_key_val,
+        timeout=30.0
     )
-    fallback_models = [
-        primary_model, 
-        "openrouter/auto", 
-        "meta-llama/llama-3.2-3b-instruct:free",
-        "openrouter/free"
-    ]
-    
     response = client.chat.completions.create(
-        model=primary_model,
+        model=model_name,
         messages=messages,
         temperature=0.2,
-        top_p=0.9,
-        max_tokens=max_tokens,
-        extra_body={
-            "models": fallback_models
-        }
+        max_tokens=max_tokens
     )
     return response.choices[0].message.content
 
@@ -133,13 +118,11 @@ if st.button("🚀 Run Full Pipeline (Stages 1, 2 & 3)", type="primary"):
         st.error("Please enter your OpenRouter API Key in the sidebar.")
         st.stop()
 
-    # ==========================================================================
-    # STAGE 1: INDEPENDENT GENERATION
-    # ==========================================================================
+    # STAGE 1
     st.subheader("📍 Stage 1: Independent Generation")
     
     stage1_prompt = f"""You are an expert clinical council member. 
-IMPORTANT: Your output MUST be ONLY a single valid JSON object. No conversational text.
+IMPORTANT: Your output MUST be ONLY a single valid JSON object. No markdown preamble.
 
 Case Vignette:
 {case_vignette}
@@ -168,7 +151,7 @@ Required JSON Structure:
             with st.spinner("Generating Plan..."):
                 try:
                     messages = [{"role": "user", "content": stage1_prompt}]
-                    raw_out = call_openrouter_with_fallback(model, messages, api_key)
+                    raw_out = call_openrouter(model, messages, api_key)
                     parsed_json = extract_json(raw_out)
                     stage1_results[f"Model {idx+1}"] = parsed_json
                     
@@ -181,9 +164,7 @@ Required JSON Structure:
 
     st.divider()
 
-    # ==========================================================================
-    # STAGE 2: ANONYMOUS MASKED PEER REVIEW
-    # ==========================================================================
+    # STAGE 2
     st.subheader("📍 Stage 2: Anonymous Masked Peer Review")
     
     if len(stage1_results) < 2:
@@ -197,8 +178,8 @@ Required JSON Structure:
         st.text(masked_text)
 
     stage2_prompt = f"""You are an expert clinical council member performing Stage 2 Peer Review.
-Evaluate the 4 anonymized clinical treatment plans below.
-IMPORTANT: Output ONLY raw valid JSON. Do not include introductory or concluding words.
+Evaluate the anonymized clinical treatment plans below.
+IMPORTANT: Output ONLY raw valid JSON.
 
 Case Vignette:
 {case_vignette}
@@ -225,7 +206,7 @@ Required JSON Structure:
             with st.spinner("Evaluating Anonymous Plans..."):
                 try:
                     messages = [{"role": "user", "content": stage2_prompt}]
-                    raw_out = call_openrouter_with_fallback(model, messages, api_key)
+                    raw_out = call_openrouter(model, messages, api_key)
                     parsed_critique = extract_json(raw_out)
                     stage2_reviews[f"Reviewer {idx+1}"] = parsed_critique
                     
@@ -242,9 +223,7 @@ Required JSON Structure:
 
     st.divider()
 
-    # ==========================================================================
-    # STAGE 3: COUNCIL CHAIR SYNTHESIS
-    # ==========================================================================
+    # STAGE 3
     st.subheader("👑 Stage 3: Council Chair Synthesis & Final Decision")
     
     with st.spinner(f"Council Chair (`{chair_model}`) synthesizing Stage 1 plans & Stage 2 peer critiques..."):
@@ -281,7 +260,7 @@ Required JSON Structure:
 }}
 """
             messages = [{"role": "user", "content": stage3_prompt}]
-            raw_chair_out = call_openrouter_with_fallback(chair_model, messages, api_key, max_tokens=2500)
+            raw_chair_out = call_openrouter(chair_model, messages, api_key, max_tokens=2000)
             chair_decision = extract_json(raw_chair_out)
 
             st.success("👑 Council Chair Synthesis Complete!")
